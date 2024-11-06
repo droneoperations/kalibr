@@ -29,7 +29,7 @@ ADD . $WORKSPACE/src/kalibr
 # 	git clone https://github.com/ori-drs/kalibr.git
 
 RUN	cd $WORKSPACE &&\
-	catkin build -j3
+	catkin build -j4
 
 
 # When a user runs a command we will run this code before theirs
