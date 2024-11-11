@@ -12,9 +12,9 @@ import copy
 import cv2
 
 def multicoreExtractionWrapper(detector, taskq, resultq, clearImages, noTransformation):    
-    while 1:
+    while True:
         try:
-            task = taskq.get_nowait()
+            task = taskq.get(timeout=5)
         except queue.Empty:
             return
         idx = task[0]
@@ -42,20 +42,20 @@ def extractCornersFromDataset(dataset, detector, multithreading=False, numProces
     
     if multithreading:   
         if not numProcesses:
-            numProcesses = max(1, multiprocessing.cpu_count()-1)
+            numProcesses = max(1, multiprocessing.cpu_count())
             clearImages = True
         try:      
             resultq = multiprocessing.Queue()
-            taskq = multiprocessing.Queue()
-            
-            for idx, (timestamp, image) in enumerate(dataset.readDataset()):
-                taskq.put( (idx, timestamp, image) )
+            taskq = multiprocessing.Queue(1)
                 
             plist=list()
             for pidx in range(0, numProcesses):
                 p = multiprocessing.Process(target=multicoreExtractionWrapper, args=(detector, taskq, resultq, clearImages, noTransformation, ))
                 p.start()
                 plist.append(p)
+            
+            for idx, (timestamp, image) in enumerate(dataset.readDataset()):
+                taskq.put( (idx, timestamp, image) )
             
             #wait for results
             last_done=0
