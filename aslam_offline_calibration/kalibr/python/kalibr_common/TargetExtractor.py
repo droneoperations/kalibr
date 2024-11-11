@@ -39,23 +39,21 @@ def extractCornersFromDataset(dataset, detector, multithreading=False, numProces
     # prepare progess bar
     iProgress = sm.Progress2(numImages)
     iProgress.sample()
-            
+    
     if multithreading:   
         if not numProcesses:
-            numProcesses = max(1,multiprocessing.cpu_count()-1)
+            numProcesses = max(1, multiprocessing.cpu_count()-1)
+            clearImages = True
         try:      
-            manager = multiprocessing.Manager()
-            resultq = manager.Queue()
-            manager2 = multiprocessing.Manager()
-            taskq = manager2.Queue()
+            resultq = multiprocessing.Queue()
+            taskq = multiprocessing.Queue()
             
             for idx, (timestamp, image) in enumerate(dataset.readDataset()):
                 taskq.put( (idx, timestamp, image) )
                 
             plist=list()
             for pidx in range(0, numProcesses):
-                detector_copy = copy.copy(detector)
-                p = multiprocessing.Process(target=multicoreExtractionWrapper, args=(detector_copy, taskq, resultq, clearImages, noTransformation, ))
+                p = multiprocessing.Process(target=multicoreExtractionWrapper, args=(detector, taskq, resultq, clearImages, noTransformation, ))
                 p.start()
                 plist.append(p)
             
