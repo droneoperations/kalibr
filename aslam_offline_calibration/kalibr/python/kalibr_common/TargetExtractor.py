@@ -10,6 +10,7 @@ except ImportError:
 import time
 import copy
 import cv2
+from tqdm import tqdm
 
 def multicoreExtractionWrapper(detector, taskq, resultq, clearImages, noTransformation):    
     while True:
@@ -35,14 +36,10 @@ def extractCornersFromDataset(dataset, detector, multithreading=False, numProces
     print("Extracting calibration target corners")    
     targetObservations = []
     numImages = dataset.numImages()
-    
-    # prepare progess bar
-    iProgress = sm.Progress2(numImages)
-    iProgress.sample()
     clearImages = True
-    if multithreading:   
+    if multithreading:
         if not numProcesses:
-            numProcesses = max(1, multiprocessing.cpu_count() - 1)
+            numProcesses = max(1, multiprocessing.cpu_count())
         try:
             resultq = multiprocessing.Queue()
             taskq = multiprocessing.Queue(1)
@@ -52,10 +49,8 @@ def extractCornersFromDataset(dataset, detector, multithreading=False, numProces
                 p.start()
                 plist.append(p)
             
-            for idx, (timestamp, image) in enumerate(dataset.readDataset()):
-                taskq.put( (idx, timestamp, image) )
-                if resultq.qsize() > 0:
-                    iProgress.sample(resultq.qsize())
+            for idx, (timestamp, image) in tqdm(enumerate(dataset.readDataset()), total=numImages):
+                taskq.put((idx, timestamp, image))
             
             while any([p.is_alive() for p in plist]):
                 time.sleep(0.5)
@@ -75,7 +70,7 @@ def extractCornersFromDataset(dataset, detector, multithreading=False, numProces
     
     #single threaded implementation
     else:
-        for timestamp, image in dataset.readDataset():
+        for timestamp, image in tqdm(dataset.readDataset()):
             if noTransformation:
                 success, observation = detector.findTargetNoTransformation(timestamp, np.array(image))
             else:
@@ -84,7 +79,6 @@ def extractCornersFromDataset(dataset, detector, multithreading=False, numProces
                 observation.clearImage()
             if success == 1:
                 targetObservations.append(observation)
-            iProgress.sample()
 
     if len(targetObservations) == 0:
         print("\r")

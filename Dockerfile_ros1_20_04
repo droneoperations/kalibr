@@ -37,6 +37,8 @@ ADD . $WORKSPACE/src/kalibr
 RUN	cd $WORKSPACE &&\
 	catkin build -j4
 
+RUN pip install tqdm
+
 # When a user runs a command we will run this code before theirs
 # This will allow for using the manual focal length if it fails to init
 # https://github.com/ethz-asl/kalibr/pull/346
