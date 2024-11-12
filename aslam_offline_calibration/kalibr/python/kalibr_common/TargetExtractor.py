@@ -12,8 +12,11 @@ from tqdm import tqdm
 
 def multicoreExtractionWrapper(detector, taskq, resultq, clearImages, noTransformation, finish):
     while not finish.is_set():
+        if taskq.empty():
+            continue
+
         try:
-            task = taskq.get(timeout=1)
+            task = taskq.get(block=True, timeout=1)
         except queue.Empty:
             return
         idx = task[0]
@@ -53,6 +56,7 @@ def extractCornersFromDataset(dataset, detector, multithreading=False, numProces
             finish.set()
             time.sleep(2)
             resultq.put('STOP')
+        
         except Exception as e:
             raise RuntimeError("Exception during multithreaded extraction: {0}".format(e))
         
@@ -85,5 +89,6 @@ def extractCornersFromDataset(dataset, detector, multithreading=False, numProces
     else:    
         print("\r  Extracted corners for %d images (of %d images)                              " % (len(targetObservations), numImages))
 
-    #close all opencv windows that might be open
+    # close all opencv windows that might be open
+    cv2.destroyAllWindows()
     return targetObservations
