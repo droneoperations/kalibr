@@ -7,7 +7,6 @@ try:
 except ImportError:
    import Queue as queue # python 2.x
 import time
-import cv2
 from tqdm import tqdm
 
 def multicoreExtractionWrapper(detector, taskq, resultq, clearImages, noTransformation, finish):
@@ -89,6 +88,4 @@ def extractCornersFromDataset(dataset, detector, multithreading=False, numProces
     else:    
         print("\r  Extracted corners for %d images (of %d images)                              " % (len(targetObservations), numImages))
 
-    # close all opencv windows that might be open
-    cv2.destroyAllWindows()
     return targetObservations
