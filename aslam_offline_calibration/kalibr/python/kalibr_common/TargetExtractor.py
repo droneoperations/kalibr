@@ -7,7 +7,7 @@ try:
 except ImportError:
    import Queue as queue # python 2.x
 import time
-
+import cv2
 from tqdm import tqdm
 
 def multicoreExtractionWrapper(detector, taskq, resultq, clearImages, noTransformation, finish):
