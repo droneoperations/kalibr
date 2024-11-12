@@ -1,4 +1,4 @@
-FROM arm64v8/ros:noetic
+FROM arm64v8/ros:noetic-perception
 
 
 # Dependencies we use, catkin tools is very good build system
@@ -14,12 +14,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive \
 	libpoco-dev libtbb-dev libblas-dev liblapack-dev libv4l-dev \
 	python3-catkin-tools python3-osrf-pycommon
 
-RUN apt-get update \
-    && apt-get install -q -y openssh-client \
-    && apt-get install -q -y python3-pip \
-    && apt-get install -q -y ros-noetic-cv-bridge \
-    && apt-get install -q -y python3-opencv
-ENV LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libgomp.so.1
 
 # Create the workspace and build kalibr in it
 ENV WORKSPACE /catkin_ws
@@ -37,7 +31,8 @@ ADD . $WORKSPACE/src/kalibr
 RUN	cd $WORKSPACE &&\
 	catkin build -j4
 
-RUN pip install tqdm
+RUN pip3 install tqdm
+ENV LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libgomp.so.1
 
 # When a user runs a command we will run this code before theirs
 # This will allow for using the manual focal length if it fails to init
