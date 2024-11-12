@@ -1,21 +1,19 @@
 import sm
 
 import numpy as np
-import sys
 import multiprocessing
 try:
    import queue
 except ImportError:
    import Queue as queue # python 2.x
 import time
-import copy
-import cv2
+
 from tqdm import tqdm
 
-def multicoreExtractionWrapper(detector, taskq, resultq, clearImages, noTransformation):    
-    while True:
+def multicoreExtractionWrapper(detector, taskq, resultq, clearImages, noTransformation, finish):
+    while not finish.is_set():
         try:
-            task = taskq.get(timeout=5)
+            task = taskq.get(timeout=1)
         except queue.Empty:
             return
         idx = task[0]
@@ -44,26 +42,27 @@ def extractCornersFromDataset(dataset, detector, multithreading=False, numProces
             resultq = multiprocessing.Queue()
             taskq = multiprocessing.Queue(1)
             plist=list()
+            finish = multiprocessing.Event()
             for pidx in range(0, numProcesses):
-                p = multiprocessing.Process(target=multicoreExtractionWrapper, args=(detector, taskq, resultq, clearImages, noTransformation, ))
+                p = multiprocessing.Process(target=multicoreExtractionWrapper, args=(detector, taskq, resultq, clearImages, noTransformation, finish))
                 p.start()
                 plist.append(p)
             
             for idx, (timestamp, image) in tqdm(enumerate(dataset.readDataset()), total=numImages):
                 taskq.put((idx, timestamp, image))
-            
-            while any([p.is_alive() for p in plist]):
-                time.sleep(0.5)
+            finish.set()
+            time.sleep(2)
             resultq.put('STOP')
         except Exception as e:
             raise RuntimeError("Exception during multithreaded extraction: {0}".format(e))
         
+        print("I finished processing corners")
         #get result sorted by time (=idx)
         if resultq.qsize() > 1:
-            targetObservations = [[]]*(resultq.qsize()-1)
-            for lidx, data in enumerate(iter(resultq.get, 'STOP')):
+            targetObservations = []
+            for data in iter(resultq.get, 'STOP'):
                 obs=data[0]; time_idx = data[1]
-                targetObservations[lidx] = (time_idx, obs)
+                targetObservations.append((time_idx, obs))
             targetObservations = list(zip(*sorted(targetObservations, key=lambda tup: tup[0])))[1]
         else:
             targetObservations=[]
@@ -87,6 +86,4 @@ def extractCornersFromDataset(dataset, detector, multithreading=False, numProces
         print("\r  Extracted corners for %d images (of %d images)                              " % (len(targetObservations), numImages))
 
     #close all opencv windows that might be open
-    cv2.destroyAllWindows()
-    
     return targetObservations
