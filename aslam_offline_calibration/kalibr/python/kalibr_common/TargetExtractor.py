@@ -1,91 +1,98 @@
 import sm
-
 import numpy as np
+import sys
 import multiprocessing
-try:
-   import queue
-except ImportError:
-   import Queue as queue # python 2.x
 import time
-from tqdm import tqdm
+import copy
+import cv2
+import queue
 
-def multicoreExtractionWrapper(detector, taskq, resultq, clearImages, noTransformation, finish):
-    while not finish.is_set():
-        if taskq.empty():
-            continue
-
+def multicoreExtractionWrapper(detector, taskq, resultq, clearImages, noTransformation):    
+    while True:
         try:
-            task = taskq.get(block=True, timeout=1)
+            task = taskq.get(timeout=1)  # Wait for tasks with a timeout
+            if task == 'STOP':
+                break
         except queue.Empty:
-            return
-        idx = task[0]
-        stamp = task[1]
-        image = task[2]
+            continue  # Continue if the queue is temporarily empty
+
+        idx, stamp, image = task
+        success, obs = (detector.findTargetNoTransformation(stamp, np.array(image)) 
+                        if noTransformation else detector.findTarget(stamp, np.array(image)))
         
-        if noTransformation:
-            success, obs = detector.findTargetNoTransformation(stamp, np.array(image))
-        else:
-            success, obs = detector.findTarget(stamp, np.array(image))
-            
         if clearImages:
             obs.clearImage()
         if success:
-            resultq.put( (obs, idx) )
+            resultq.put((obs, idx))
+
+def task_feeder(dataset, taskq, numImages):
+    for idx, (timestamp, image) in enumerate(dataset.readDataset()):
+        taskq.put((idx, timestamp, image))
+    for _ in range(multiprocessing.cpu_count()):
+        taskq.put('STOP')  # Signal to workers that there are no more tasks
 
 def extractCornersFromDataset(dataset, detector, multithreading=False, numProcesses=None, clearImages=True, noTransformation=False):
     print("Extracting calibration target corners")    
     targetObservations = []
     numImages = dataset.numImages()
-    clearImages = True
+
+    # Initialize progress
+    iProgress = sm.Progress2(numImages)
+    iProgress.sample()
+            
     if multithreading:
         if not numProcesses:
             numProcesses = max(1, multiprocessing.cpu_count())
         try:
+            # Queues for task distribution and result collection
             resultq = multiprocessing.Queue()
-            taskq = multiprocessing.Queue(1)
-            plist=list()
-            finish = multiprocessing.Event()
-            for pidx in range(0, numProcesses):
-                p = multiprocessing.Process(target=multicoreExtractionWrapper, args=(detector, taskq, resultq, clearImages, noTransformation, finish))
+            taskq = multiprocessing.Queue(numProcesses)  # Limit task queue size for lazy loading
+            
+            # Start task feeder in a separate process to avoid preloading all data
+            feeder = multiprocessing.Process(target=task_feeder, args=(dataset, taskq, numImages))
+            feeder.start()
+            
+            # Start worker processes
+            plist = []
+            for _ in range(numProcesses):
+                p = multiprocessing.Process(target=multicoreExtractionWrapper, args=(detector, taskq, resultq, clearImages, noTransformation))
                 p.start()
                 plist.append(p)
             
-            for idx, (timestamp, image) in tqdm(enumerate(dataset.readDataset()), total=numImages):
-                taskq.put((idx, timestamp, image))
-            finish.set()
-            time.sleep(2)
-            resultq.put('STOP')
+            feeder.join()
+            for p in plist:
+                p.join()
+            
+            # Collect results
+            for _ in range(resultq.qsize):
+                obs, idx = resultq.get()
+                targetObservations.append((idx, obs))
+            
+            # Sort observations by index
+            targetObservations.sort(key=lambda tup: tup[0])
+            targetObservations = [obs for _, obs in targetObservations]
         
         except Exception as e:
-            raise RuntimeError("Exception during multithreaded extraction: {0}".format(e))
-        
-        print("I finished processing corners")
-        #get result sorted by time (=idx)
-        if resultq.qsize() > 1:
-            targetObservations = []
-            for data in iter(resultq.get, 'STOP'):
-                obs=data[0]; time_idx = data[1]
-                targetObservations.append((time_idx, obs))
-            targetObservations = list(zip(*sorted(targetObservations, key=lambda tup: tup[0])))[1]
-        else:
-            targetObservations=[]
-    
-    #single threaded implementation
+            raise RuntimeError(f"Exception during multithreaded extraction: {e}")
+
     else:
-        for timestamp, image in tqdm(dataset.readDataset()):
-            if noTransformation:
-                success, observation = detector.findTargetNoTransformation(timestamp, np.array(image))
-            else:
-                success, observation = detector.findTarget(timestamp, np.array(image))
+        # Single-threaded version with lazy loading
+        for timestamp, image in dataset.readDataset():
+            success, observation = (detector.findTargetNoTransformation(timestamp, np.array(image)) 
+                                    if noTransformation else detector.findTarget(timestamp, np.array(image)))
             if clearImages:
                 observation.clearImage()
-            if success == 1:
+            if success:
                 targetObservations.append(observation)
+            iProgress.sample()
 
-    if len(targetObservations) == 0:
+    if not targetObservations:
         print("\r")
-        sm.logFatal("No corners could be extracted for camera {0}! Check the calibration target configuration and dataset.".format(dataset.topic))
+        sm.logFatal(f"No corners could be extracted for camera {dataset.topic}! Check the calibration target configuration and dataset.")
     else:    
-        print("\r  Extracted corners for %d images (of %d images)                              " % (len(targetObservations), numImages))
+        print(f"\r  Extracted corners for {len(targetObservations)} images (of {numImages} images)")
 
+    # Close any OpenCV windows that might be open
+    cv2.destroyAllWindows()
+    
     return targetObservations
