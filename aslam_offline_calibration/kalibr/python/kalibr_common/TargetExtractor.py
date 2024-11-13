@@ -37,7 +37,7 @@ def extractCornersFromDataset(dataset, detector, multithreading=False, numProces
     # Initialize progress
     iProgress = sm.Progress2(numImages)
     iProgress.sample()
-            
+    clearImages = True
     if multithreading:
         if not numProcesses:
             numProcesses = max(1, multiprocessing.cpu_count())
