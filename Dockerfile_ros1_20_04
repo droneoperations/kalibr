@@ -14,8 +14,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive \
 	libpoco-dev libtbb-dev libblas-dev liblapack-dev libv4l-dev \
 	python3-catkin-tools python3-osrf-pycommon
 
-RUN pip3 install tqdm
-
 # Create the workspace and build kalibr in it
 ENV WORKSPACE /catkin_ws
 ENV LD_PRELOAD /usr/lib/aarch64-linux-gnu/libgomp.so.1
