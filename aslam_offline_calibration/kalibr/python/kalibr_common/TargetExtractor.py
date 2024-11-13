@@ -19,13 +19,11 @@ def multicoreExtractionWrapper(detector, taskq, resultq, clearImages, noTransfor
         idx, stamp, image = task
         success, obs = (detector.findTargetNoTransformation(stamp, np.array(image)) 
                         if noTransformation else detector.findTarget(stamp, np.array(image)))
-        
         if clearImages:
             obs.clearImage()
-        if success:
-            resultq.put((obs, idx))
+        resultq.put((success, obs, idx))
 
-def task_feeder(dataset, taskq, numImages):
+def task_feeder(dataset, taskq):
     for idx, (timestamp, image) in enumerate(dataset.readDataset()):
         taskq.put((idx, timestamp, image))
     for _ in range(multiprocessing.cpu_count()):
@@ -49,7 +47,7 @@ def extractCornersFromDataset(dataset, detector, multithreading=False, numProces
             taskq = multiprocessing.Queue(numProcesses)  # Limit task queue size for lazy loading
             
             # Start task feeder in a separate process to avoid preloading all data
-            feeder = multiprocessing.Process(target=task_feeder, args=(dataset, taskq, numImages))
+            feeder = multiprocessing.Process(target=task_feeder, args=(dataset, taskq))
             feeder.start()
             
             # Start worker processes
@@ -59,14 +57,17 @@ def extractCornersFromDataset(dataset, detector, multithreading=False, numProces
                 p.start()
                 plist.append(p)
             
+            # Collect results
+            for _ in range(numImages):
+                success, obs, idx = resultq.get()
+                if success:
+                    targetObservations.append((idx, obs))
+                iProgress.sample()
+            
+            # Wait for task feeder and worker processes to finish
             feeder.join()
             for p in plist:
                 p.join()
-            
-            # Collect results
-            for _ in range(resultq.qsize):
-                obs, idx = resultq.get()
-                targetObservations.append((idx, obs))
             
             # Sort observations by index
             targetObservations.sort(key=lambda tup: tup[0])
