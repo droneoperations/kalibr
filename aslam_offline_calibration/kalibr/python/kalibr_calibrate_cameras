@@ -111,6 +111,7 @@ def parseArgs():
     outputSettings.add_argument('--plot', action='store_true', dest='plot', help='Plot during calibration (this could be slow).')
     outputSettings.add_argument('--dont-show-report', action='store_true', dest='dontShowReport', help='Do not show the report on screen after calibration.')
     outputSettings.add_argument('--export-poses', action='store_true', dest='exportPoses', help='Export the optimized poses into a CSV (time_ns, position, quaterion)')
+    outputSettings.add_argument('--seed', type=int, default=8)
 
     #print help if no argument is specified
     if len(sys.argv)==1:
@@ -140,8 +141,14 @@ def parseArgs():
     return parsed
 
 
-def main():
+def main():    
     parsed = parseArgs()
+    
+    if type(parsed.seed) is int:
+        random.seed(parsed.seed)
+        np.random.seed(parsed.seed)
+        os.environ['PYTHONHASHSEED'] = str(parsed.seed)
+        print(f"Set seed to {parsed.seed}")
     
     #logging modes
     if parsed.verbose:

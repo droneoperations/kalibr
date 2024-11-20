@@ -9,7 +9,7 @@ import argparse
 import signal
 import sys
 import os
-
+import random
 # make numpy print prettier
 np.set_printoptions(suppress=True)
 
@@ -103,6 +103,7 @@ def parseArgs():
     outputSettings.add_argument('--verbose', action='store_true', dest='verbose', help='Verbose output (disables plots)')
     outputSettings.add_argument('--dont-show-report', action='store_true', dest='dontShowReport', help='Do not show the report on screen after calibration.')
     outputSettings.add_argument('--export-poses', action='store_true', dest='exportPoses', help='Export the optimized poses into a CSV (time_ns, position, quaterion)')
+    outputSettings.add_argument('--seed', type=int, default=8)
 
     #print help if no argument is specified
     if len(sys.argv)==1:
@@ -127,7 +128,13 @@ def parseArgs():
 
 def main():
     # Parse the arguments
-    parsed = parseArgs();
+    parsed = parseArgs()
+
+    if type(parsed.seed) is int:
+        random.seed(parsed.seed)
+        np.random.seed(parsed.seed)
+        os.environ['PYTHONHASHSEED'] = str(parsed.seed)
+        print(f"Set seed to {parsed.seed}")
     
     #logging modess
     if parsed.verbose:
