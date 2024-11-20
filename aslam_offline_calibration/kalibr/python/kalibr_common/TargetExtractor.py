@@ -57,17 +57,17 @@ def extractCornersFromDataset(dataset, detector, multithreading=False, numProces
     metadata = {"hash": compute_hash(dataset), "timestamp": time.time()}
 
     # Check for cached results
-    if os.path.exists(cache_path):
-        try:
-            cached_data = load_cache(cache_path)
-            if cached_data["metadata"]["hash"] == metadata["hash"]:
-                print("Cache found and matches the current configuration. Loading results...")
-                print(f"Loaded corners for {len(cached_data['observations'])} images")
-                return cached_data["observations"]
-            else:
-                print("Cache found but does not match the current configuration. Recomputing...")
-        except Exception as e:
-            print(f"Failed to load cache: {e}. Recomputing...")
+    # if os.path.exists(cache_path):
+    #     try:
+    #         cached_data = load_cache(cache_path)
+    #         if cached_data["metadata"]["hash"] == metadata["hash"]:
+    #             print("Cache found and matches the current configuration. Loading results...")
+    #             print(f"Loaded corners for {len(cached_data['observations'])} images")
+    #             return cached_data["observations"]
+    #         else:
+    #             print("Cache found but does not match the current configuration. Recomputing...")
+    #     except Exception as e:
+    #         print(f"Failed to load cache: {e}. Recomputing...")
 
     targetObservations = []
     numImages = dataset.numImages()
@@ -124,7 +124,7 @@ def extractCornersFromDataset(dataset, detector, multithreading=False, numProces
         print(f"\r  Extracted corners for {len(targetObservations)} images (of {numImages} images)")
 
     # Save results to cache
-    save_cache(cache_path, metadata, targetObservations)
+    # save_cache(cache_path, metadata, targetObservations)
 
     # Close OpenCV windows
     cv2.destroyAllWindows()
